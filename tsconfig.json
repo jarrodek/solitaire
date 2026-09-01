@@ -1,0 +1,22 @@
+{
+  "compilerOptions": {
+    "rootDir": "src",
+    "target": "esnext",
+    "module": "NodeNext",
+    "outDir": "public/build",
+    "moduleResolution": "NodeNext",
+    "lib": ["esnext", "DOM"],
+    "strict": true,
+    "esModuleInterop": true,
+    "noImplicitThis": true,
+    "noImplicitAny": true,
+    "noImplicitOverride": true,
+    "pretty": true,
+    "incremental": true,
+    "experimentalDecorators": true,
+    "useDefineForClassFields": false
+  },
+  "include": [
+    "src/**/*"
+  ]
+}

@@ -1,0 +1,25 @@
+{
+  "name": "@pawel-up/solitaire",
+  "version": "0.0.1",
+  "description": "Another solitaire game",
+  "main": "index.js",
+  "type": "module",
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "deploy": "firebase deploy",
+    "dev": "concurrently --raw \"tsc --project tsconfig.json --watch --preserveWatchOutput\" \"wds --watch\""
+  },
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "@web/dev-server": "^1.0.0",
+    "concurrently": "^10.0.5",
+    "eslint": "^10.9.1",
+    "typescript": "^6.0.0"
+  },
+  "dependencies": {
+    "firebase": "^12.18.0",
+    "lit": "^3.1.4"
+  }
+}
