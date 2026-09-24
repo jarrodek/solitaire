@@ -257,7 +257,7 @@ export default class Board extends LitElement {
     this.handleDocumentPointerCancel = this.handleDocumentPointerCancel.bind(this);
     this.handleContextMenu = this.handleContextMenu.bind(this);
     this.handleKeyDown = this.handleKeyDown.bind(this);
-    this.handleVisibilityChange = this.handleVisibilityChange.bind(this);
+    this.handleWindowStateChange = this.handleWindowStateChange.bind(this);
   }
 
   override connectedCallback(): void {
@@ -267,7 +267,9 @@ export default class Board extends LitElement {
     window.addEventListener('pointercancel', this.handleDocumentPointerCancel);
     window.addEventListener('contextmenu', this.handleContextMenu);
     window.addEventListener('keydown', this.handleKeyDown);
-    document.addEventListener('visibilitychange', this.handleVisibilityChange);
+    window.addEventListener('focus', this.handleWindowStateChange);
+    window.addEventListener('blur', this.handleWindowStateChange);
+    document.addEventListener('visibilitychange', this.handleWindowStateChange);
     this.startGame();
   }
 
@@ -278,7 +280,9 @@ export default class Board extends LitElement {
     window.removeEventListener('pointercancel', this.handleDocumentPointerCancel);
     window.removeEventListener('contextmenu', this.handleContextMenu);
     window.removeEventListener('keydown', this.handleKeyDown);
-    document.removeEventListener('visibilitychange', this.handleVisibilityChange);
+    window.removeEventListener('focus', this.handleWindowStateChange);
+    window.removeEventListener('blur', this.handleWindowStateChange);
+    document.removeEventListener('visibilitychange', this.handleWindowStateChange);
     this.stopAutoComplete();
     this.cancelDealAnimations();
     this.clearHint();
@@ -300,8 +304,11 @@ export default class Board extends LitElement {
     }
   }
 
-  handleVisibilityChange(): void {
-    if (document.hidden) {
+  handleWindowStateChange(e?: Event): void {
+    const isBlurred = e?.type === 'blur';
+    const isFocused = e?.type === 'focus' || document.hasFocus();
+    const isActive = !isBlurred && !document.hidden && isFocused;
+    if (!isActive) {
       this.score.pauseTimer();
     } else if (!this.showSettings && !this.isGameWon()) {
       this.score.resumeTimer();
@@ -448,7 +455,7 @@ export default class Board extends LitElement {
     this.showSettings = !this.showSettings;
     if (this.showSettings) {
       this.score.pauseTimer();
-    } else if (!document.hidden && !this.isGameWon()) {
+    } else if (!document.hidden && document.hasFocus() && !this.isGameWon()) {
       this.score.resumeTimer();
     }
   }
