@@ -8,9 +8,10 @@ import { rankToLabel } from '../../game/Labels.js';
 import { MoveSuggestion, suggestMoves, IHint, findBestHint } from '../../game/Suggestions.js';
 import { Score, ScoringMode } from '../../game/Score.js';
 import { GameDifficulty } from '../../game/Difficulty.js';
-import { bolt, close, lightbulb, redo, refresh, settings, undo, volumeOff, volumeUp } from '../Icons.js';
+import { bolt, close, lightbulb, redo, refresh, settings, trophy, undo, volumeOff, volumeUp } from '../Icons.js';
 import { soundFX } from '../../audio/SoundFX.js';
 import { CardCascadeDef, winCascade } from '../../game/WinCascade.js';
+import { scoreHistory, ILeaderboardData, IRankedScoreRecord, IScoreRecord } from '../../game/ScoreHistory.js';
 
 interface IDraggedCard {
   /**
@@ -148,6 +149,41 @@ export default class Board extends LitElement {
    */
   @state()
   accessor hintToastMessage: string | null = null;
+
+  /**
+   * Whether the high scores modal is open.
+   */
+  @state()
+  accessor showHighScores = false;
+
+  /**
+   * Currently active tab in the high scores modal.
+   */
+  @state()
+  accessor highScoresTab: ScoringMode = this.score.scoringMode;
+
+  /**
+   * High scores data loaded for the modal.
+   */
+  @state()
+  accessor highScoresData: ILeaderboardData | null = null;
+
+  /**
+   * Leaderboard data shown in the win modal.
+   */
+  @state()
+  accessor winLeaderboardData: ILeaderboardData | null = null;
+
+  /**
+   * The record ID of the game won in the current session.
+   */
+  @state()
+  accessor latestWinRecordId: number | undefined;
+
+  /**
+   * Flag to avoid recording the win multiple times.
+   */
+  private hasRecordedCurrentWin = false;
 
   /**
    * Timeout handle for the active hint display.
@@ -310,7 +346,7 @@ export default class Board extends LitElement {
     const isActive = !isBlurred && !document.hidden && isFocused;
     if (!isActive) {
       this.score.pauseTimer();
-    } else if (!this.showSettings && !this.isGameWon()) {
+    } else if (!this.showSettings && !this.showHighScores && !this.isGameWon()) {
       this.score.resumeTimer();
     }
   }
@@ -327,9 +363,10 @@ export default class Board extends LitElement {
 
     // Escape: Close modals
     if (e.key === 'Escape') {
-      if (this.showSettings) {
+      if (this.showSettings || this.showHighScores) {
         this.showSettings = false;
-        if (!document.hidden && !this.isGameWon()) {
+        this.showHighScores = false;
+        if (!document.hidden && document.hasFocus() && !this.isGameWon()) {
           this.score.resumeTimer();
         }
       }
@@ -400,6 +437,13 @@ export default class Board extends LitElement {
     if (key === 's') {
       e.preventDefault();
       this.toggleSettings();
+      return;
+    }
+
+    // High Scores / Leaderboard toggle: L
+    if (key === 'l') {
+      e.preventDefault();
+      this.toggleHighScores();
       return;
     }
 
@@ -510,11 +554,15 @@ export default class Board extends LitElement {
     ${this.canAutoComplete() ? this.renderAutoCompleteBanner() : ''}
     ${this.isGameWon() ? this.renderWinModal() : ''}
     ${this.showSettings ? this.renderSettingsModal() : ''}
+    ${this.showHighScores ? this.renderHighScoresModal() : ''}
     ${this.hintToastMessage ? this.renderHintToast() : ''}
     `;
   }
 
   startGame(): void {
+    this.hasRecordedCurrentWin = false;
+    this.latestWinRecordId = undefined;
+    this.winLeaderboardData = null;
     this.cancelDealAnimations();
     winCascade.stop();
     soundFX.deal();
@@ -1123,6 +1171,33 @@ export default class Board extends LitElement {
       this.score.stopTimer();
       soundFX.win();
       this.triggerWinCascade();
+      this.recordWin();
+    }
+  }
+
+  async recordWin(): Promise<void> {
+    if (this.hasRecordedCurrentWin) return;
+    this.hasRecordedCurrentWin = true;
+
+    const finalScore = this.scoringMode === 'vegas' && this.vegasCumulative ? this.score.vegasBankroll : this.score.current;
+    const record: Omit<IScoreRecord, 'id'> = {
+      score: finalScore,
+      moves: this.game.moves.length,
+      timeMs: this.score.getElapsedMs(),
+      elapsedTime: this.score.getElapsedTime(),
+      scoringMode: this.scoringMode,
+      difficulty: this.difficulty,
+      drawCount: this.drawCount,
+      date: Date.now(),
+    };
+
+    try {
+      const id = await scoreHistory.addRecord(record);
+      this.latestWinRecordId = id;
+      this.winLeaderboardData = await scoreHistory.getLeaderboard(this.scoringMode, id);
+      this.requestUpdate();
+    } catch (err) {
+      console.error('Failed to save score to IndexedDB:', err);
     }
   }
 
@@ -1382,6 +1457,9 @@ export default class Board extends LitElement {
         </button>
         <button class="btn" @click="${this.startGame}" title="Start a new game (N)">
           ${refresh} New Game
+        </button>
+        <button class="btn" @click="${this.toggleHighScores}" title="Top Scores (L)">
+          ${trophy} Scores
         </button>
         <button class="btn" @click="${this.toggleSettings}" title="Game Settings (S)">
           ${settings} Settings
@@ -1653,6 +1731,10 @@ export default class Board extends LitElement {
             <div class="win-stat-lbl">Time</div>
           </div>
         </div>
+        <div class="leaderboard-section">
+          <div class="leaderboard-title">${trophy} Top Scores (${isVegas ? 'Vegas' : 'Standard'})</div>
+          ${this.renderLeaderboardTable(this.winLeaderboardData)}
+        </div>
         <button class="win-btn" @click="${this.startGame}">Play Again</button>
       </div>
     </div>
@@ -1804,6 +1886,10 @@ export default class Board extends LitElement {
                 <span class="shortcut-keys"><kbd>M</kbd></span>
               </div>
               <div class="shortcut-item">
+                <span class="shortcut-desc">Leaderboard</span>
+                <span class="shortcut-keys"><kbd>L</kbd></span>
+              </div>
+              <div class="shortcut-item">
                 <span class="shortcut-desc">Settings</span>
                 <span class="shortcut-keys"><kbd>S</kbd></span>
               </div>
@@ -1813,6 +1899,133 @@ export default class Board extends LitElement {
               </div>
             </div>
           </div>
+        </div>
+      </div>
+    </div>
+    `;
+  }
+
+  toggleHighScores(): void {
+    this.showHighScores = !this.showHighScores;
+    if (this.showHighScores) {
+      this.highScoresTab = this.scoringMode;
+      this.score.pauseTimer();
+      this.loadHighScoresData();
+    } else if (!document.hidden && document.hasFocus() && !this.isGameWon() && !this.showSettings) {
+      this.score.resumeTimer();
+    }
+  }
+
+  async loadHighScoresData(): Promise<void> {
+    try {
+      this.highScoresData = await scoreHistory.getLeaderboard(this.highScoresTab, this.latestWinRecordId);
+      this.requestUpdate();
+    } catch (err) {
+      console.error('Failed to load high scores from IndexedDB:', err);
+    }
+  }
+
+  setHighScoresTab(mode: ScoringMode): void {
+    if (this.highScoresTab === mode) return;
+    this.highScoresTab = mode;
+    this.loadHighScoresData();
+  }
+
+  renderLeaderboardTable(data: ILeaderboardData | null): TemplateResult {
+    if (!data) {
+      return html`<div class="leaderboard-empty">Loading top scores...</div>`;
+    }
+    if (data.topRecords.length === 0) {
+      return html`<div class="leaderboard-empty">No completed games recorded yet. Solve a puzzle to make the leaderboard!</div>`;
+    }
+
+    const formatScore = (rec: IRankedScoreRecord): string => {
+      if (rec.scoringMode === 'vegas') {
+        if (rec.score > 0) return `+$${rec.score}`;
+        if (rec.score < 0) return `-$${Math.abs(rec.score)}`;
+        return `$0`;
+      }
+      return `${rec.score.toLocaleString()} pts`;
+    };
+
+    const formatDate = (timestamp: number): string => {
+      const d = new Date(timestamp);
+      return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+    };
+
+    const renderRow = (rec: IRankedScoreRecord) => {
+      const badgeClass = rec.rank === 1 ? 'top-1' : rec.rank === 2 ? 'top-2' : rec.rank === 3 ? 'top-3' : '';
+      return html`
+      <tr class="leaderboard-row ${rec.isCurrent ? 'current' : ''}">
+        <td>
+          <span class="rank-badge ${badgeClass}">${rec.rank}</span>
+          ${rec.isCurrent ? html`<span class="current-tag">Current</span>` : ''}
+        </td>
+        <td class="num">${formatScore(rec)}</td>
+        <td class="num">${rec.elapsedTime}</td>
+        <td class="num">${rec.moves}</td>
+        <td class="num">${formatDate(rec.date)}</td>
+      </tr>
+      `;
+    };
+
+    const showSeparateCurrent = data.currentRecord && data.currentRank && data.currentRank > 10;
+
+    return html`
+    <table class="leaderboard-table">
+      <thead>
+        <tr>
+          <th>#</th>
+          <th class="num">Score</th>
+          <th class="num">Time</th>
+          <th class="num">Moves</th>
+          <th class="num">Date</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${data.topRecords.map(rec => renderRow(rec))}
+        ${showSeparateCurrent ? html`
+        <tr class="leaderboard-divider-row">
+          <td colspan="5">
+            <div class="leaderboard-divider"><span>···</span></div>
+          </td>
+        </tr>
+        ${renderRow(data.currentRecord!)}
+        ` : ''}
+      </tbody>
+    </table>
+    `;
+  }
+
+  renderHighScoresModal(): TemplateResult {
+    return html`
+    <div class="highscores-modal" @click="${(e: MouseEvent) => { if (e.target === e.currentTarget) this.toggleHighScores(); }}">
+      <div class="highscores-card">
+        <div class="highscores-header">
+          <h2 class="highscores-title">${trophy} Top Scores</h2>
+          <button class="settings-close-btn" @click="${this.toggleHighScores}" title="Close">
+            ${close}
+          </button>
+        </div>
+        <div class="highscores-toolbar">
+          <div class="mode-selector">
+            <button 
+              class="mode-btn ${this.highScoresTab === 'standard' ? 'active' : ''}" 
+              @click="${() => this.setHighScoresTab('standard')}">
+              Standard
+            </button>
+            <button 
+              class="mode-btn ${this.highScoresTab === 'vegas' ? 'active' : ''}" 
+              @click="${() => this.setHighScoresTab('vegas')}">
+              Vegas
+            </button>
+          </div>
+          ${this.highScoresData && this.highScoresData.totalCount > 0 ? html`
+            <span style="font-size: 0.78rem; opacity: 0.75;">${this.highScoresData.totalCount} won ${this.highScoresData.totalCount === 1 ? 'game' : 'games'}</span>
+          ` : ''}
+        </div>
+        <div class="highscores-content">
+          ${this.renderLeaderboardTable(this.highScoresData)}
         </div>
       </div>
     </div>

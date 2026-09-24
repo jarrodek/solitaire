@@ -128,17 +128,24 @@ export class Score {
   }
 
   /**
+   * Gets effective elapsed time in milliseconds, subtracting paused periods.
+   */
+  getElapsedMs(): number {
+    if (!this.startTime) {
+      return 0;
+    }
+    const currentPaused = (this.isPaused && this.pausedAt) ? (Date.now() - this.pausedAt) : 0;
+    const end = this.endTime ?? Date.now();
+    return Math.max(0, end - this.startTime - this.totalPausedTime - currentPaused);
+  }
+
+  /**
    * Gets the elapsed time since the game started, formatted as HH:MM:SS.
    * Paused intervals and inactive window/tab periods are subtracted.
    * @returns The elapsed time as a string.
    */
   getElapsedTime(): string {
-    if (!this.startTime) {
-      return "00:00:00";
-    }
-    const currentPaused = (this.isPaused && this.pausedAt) ? (Date.now() - this.pausedAt) : 0;
-    const end = this.endTime ?? Date.now();
-    const effectiveElapsedMs = Math.max(0, end - this.startTime - this.totalPausedTime - currentPaused);
+    const effectiveElapsedMs = this.getElapsedMs();
     const totalSeconds = Math.floor(effectiveElapsedMs / 1000);
     const hours = Math.floor(totalSeconds / 3600);
     const minutes = Math.floor((totalSeconds % 3600) / 60);
