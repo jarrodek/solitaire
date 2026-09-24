@@ -11,6 +11,7 @@ export interface IScoreRecord {
   difficulty: GameDifficulty;
   drawCount: 1 | 3;
   date: number; // timestamp
+  timeBonus?: number;
 }
 
 export interface IRankedScoreRecord extends IScoreRecord {
@@ -26,7 +27,7 @@ export interface ILeaderboardData {
 }
 
 const DB_NAME = 'solitaire_db';
-const DB_VERSION = 1;
+const DB_VERSION = 2;
 const STORE_NAME = 'scores';
 
 export class ScoreHistory {
@@ -47,6 +48,25 @@ export class ScoreHistory {
           // Compound index for filtering by mode and ordering by score
           store.createIndex('mode_score', ['scoringMode', 'score'], { unique: false });
           store.createIndex('date', 'date', { unique: false });
+        }
+        if (event.oldVersion < 2 && db.objectStoreNames.contains(STORE_NAME)) {
+          const tx = (event.target as IDBOpenDBRequest).transaction!;
+          const store = tx.objectStore(STORE_NAME);
+          const cursorReq = store.openCursor();
+          cursorReq.onsuccess = () => {
+            const cursor = cursorReq.result;
+            if (cursor) {
+              const rec = cursor.value as IScoreRecord;
+              if (rec.scoringMode === 'standard' && rec.score < 2000 && !rec.timeBonus && rec.timeMs > 0) {
+                const sec = Math.floor(rec.timeMs / 1000);
+                const bonus = Math.floor(700000 / Math.max(30, sec));
+                rec.score += bonus;
+                rec.timeBonus = bonus;
+                cursor.update(rec);
+              }
+              cursor.continue();
+            }
+          };
         }
       };
 

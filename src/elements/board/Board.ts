@@ -1170,13 +1170,14 @@ export default class Board extends LitElement {
   checkGameStatus(): void {
     if (this.isGameWon()) {
       this.score.stopTimer();
+      const bonus = this.score.applyWinBonus();
       soundFX.win();
       this.triggerWinCascade();
-      this.recordWin();
+      this.recordWin(bonus);
     }
   }
 
-  async recordWin(): Promise<void> {
+  async recordWin(bonus: number = 0): Promise<void> {
     if (this.hasRecordedCurrentWin) return;
     this.hasRecordedCurrentWin = true;
 
@@ -1190,6 +1191,7 @@ export default class Board extends LitElement {
       difficulty: this.difficulty,
       drawCount: this.drawCount,
       date: Date.now(),
+      timeBonus: bonus > 0 ? bonus : undefined,
     };
 
     try {
@@ -1745,6 +1747,7 @@ export default class Board extends LitElement {
     const elapsedTime = this.score.getElapsedTime();
     const { length } = this.game.moves;
     const isVegas = this.scoringMode === 'vegas';
+    const bonus = this.score.lastAwardedBonus;
 
     return html`
     <div class="win-modal">
@@ -1754,7 +1757,10 @@ export default class Board extends LitElement {
         <div class="win-stats">
           <div>
             <div class="win-stat-val ${scoreClass}">${formattedScore}</div>
-            <div class="win-stat-lbl">${isVegas ? (this.vegasCumulative ? 'Bankroll' : 'Winnings') : 'Score'}</div>
+            <div class="win-stat-lbl">
+              ${isVegas ? (this.vegasCumulative ? 'Bankroll' : 'Winnings') : 'Score'}
+              ${!isVegas && bonus > 0 ? html`<div class="win-bonus-tag" style="font-size: 0.72rem; color: #34d399; font-weight: 600; margin-top: 3px;">+${bonus.toLocaleString()} time bonus</div>` : ''}
+            </div>
           </div>
           <div>
             <div class="win-stat-val">${length}</div>

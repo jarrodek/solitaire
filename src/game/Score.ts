@@ -51,6 +51,16 @@ export class Score {
    */
   isPaused = false;
 
+  /**
+   * Whether the win time bonus has already been applied for the current game.
+   */
+  hasAppliedBonus = false;
+
+  /**
+   * The win time bonus awarded in the current won game.
+   */
+  lastAwardedBonus = 0;
+
   setScoringMode(mode: ScoringMode): void {
     this.scoringMode = mode;
     localStorage.setItem('solitaire_scoring_mode', mode);
@@ -125,6 +135,8 @@ export class Score {
     this.pausedAt = null;
     this.totalPausedTime = 0;
     this.isPaused = false;
+    this.hasAppliedBonus = false;
+    this.lastAwardedBonus = 0;
   }
 
   /**
@@ -137,6 +149,38 @@ export class Score {
     const currentPaused = (this.isPaused && this.pausedAt) ? (Date.now() - this.pausedAt) : 0;
     const end = this.endTime ?? Date.now();
     return Math.max(0, end - this.startTime - this.totalPausedTime - currentPaused);
+  }
+
+  /**
+   * Calculates the classic Windows Solitaire time bonus for winning a game.
+   * Formula: floor(700,000 / seconds), with minimum 30 seconds threshold.
+   */
+  calculateTimeBonus(): number {
+    if (this.scoringMode !== 'standard') {
+      return 0;
+    }
+    const elapsedSec = Math.floor(this.getElapsedMs() / 1000);
+    if (elapsedSec <= 0) {
+      return 0;
+    }
+    return Math.floor(700000 / Math.max(30, elapsedSec));
+  }
+
+  /**
+   * Applies the win bonus to the current score upon victory.
+   * Idempotent: applies only once per game. Returns the bonus awarded.
+   */
+  applyWinBonus(): number {
+    if (this.hasAppliedBonus) {
+      return this.lastAwardedBonus;
+    }
+    const bonus = this.calculateTimeBonus();
+    if (bonus > 0) {
+      this.current += bonus;
+      this.hasAppliedBonus = true;
+      this.lastAwardedBonus = bonus;
+    }
+    return bonus;
   }
 
   /**
@@ -222,7 +266,7 @@ export class Score {
     if (from === 'waste' && to === 'tableau') {
       result = 5;
     } else if (from === 'waste' && to === 'foundation') {
-      result = 10;
+      result = 15;
     } else if (from === 'tableau' && to === 'foundation') {
       result = 10;
       if (moveResult.newFlipped) {
