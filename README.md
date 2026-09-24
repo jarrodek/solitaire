@@ -117,7 +117,7 @@ npm install
 ```
 
 ### Development
-Run the TypeScript compiler in watch mode alongside the local development server:
+Start the Vite local development server with instant HMR:
 
 ```bash
 npm run dev
@@ -132,8 +132,21 @@ Verify TypeScript compilation across the entire codebase:
 npm run typecheck
 ```
 
+### Production Build
+Build optimized and minified production bundles into `dist/`:
+
+```bash
+npm run build
+```
+
+Preview the production build locally:
+
+```bash
+npm run preview
+```
+
 ### Deployment
-Deploy to Firebase Hosting:
+Build and deploy to Firebase Hosting:
 
 ```bash
 npm run deploy
@@ -146,5 +159,5 @@ npm run deploy
 * **Language:** [TypeScript](https://www.typescriptlang.org/)
 * **Graphics:** Responsive CSS Grid + Vector SVG Cards + HTML5 Canvas
 * **Audio:** Web Audio API (procedural synthesis)
-* **Tooling:** [@web/dev-server](https://modern-web.dev/docs/dev-server/overview/), `concurrently`
+* **Tooling:** [Vite](https://vite.dev/) (Dev server & Rollup production bundler)
 * **Hosting:** Firebase Hosting

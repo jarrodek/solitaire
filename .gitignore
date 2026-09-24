@@ -69,6 +69,7 @@ node_modules/
 *.tsbuildinfo
 
 # Build output
+dist/
 public/build/
 
 # Firebase CLI logs & emulator logs
