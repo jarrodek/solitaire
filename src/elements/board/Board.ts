@@ -8,7 +8,7 @@ import { rankToLabel } from '../../game/Labels.js';
 import { MoveSuggestion, suggestMoves, IHint, findBestHint } from '../../game/Suggestions.js';
 import { Score, ScoringMode } from '../../game/Score.js';
 import { GameDifficulty } from '../../game/Difficulty.js';
-import { close, lightbulb, redo, refresh, settings, trophy, undo, volumeOff, volumeUp } from '../Icons.js';
+import { bolt, close, lightbulb, menu, redo, refresh, settings, trophy, undo, volumeOff, volumeUp } from '../Icons.js';
 import { soundFX } from '../../audio/SoundFX.js';
 import { CardCascadeDef, winCascade } from '../../game/WinCascade.js';
 import { scoreHistory, ILeaderboardData, IRankedScoreRecord, IScoreRecord } from '../../game/ScoreHistory.js';
@@ -96,6 +96,12 @@ export default class Board extends LitElement {
    */
   @state()
   accessor showSettings = false;
+
+  /**
+   * Whether the mobile menu drawer is open.
+   */
+  @state()
+  accessor showMobileMenu = false;
 
   /**
    * Whether sound effects are muted.
@@ -364,9 +370,10 @@ export default class Board extends LitElement {
 
     // Escape: Close modals
     if (e.key === 'Escape') {
-      if (this.showSettings || this.showHighScores) {
+      if (this.showSettings || this.showHighScores || this.showMobileMenu) {
         this.showSettings = false;
         this.showHighScores = false;
+        this.showMobileMenu = false;
         if (!document.hidden && document.hasFocus() && !this.isGameWon()) {
           this.score.resumeTimer();
         }
@@ -499,8 +506,21 @@ export default class Board extends LitElement {
   toggleSettings(): void {
     this.showSettings = !this.showSettings;
     if (this.showSettings) {
+      this.showMobileMenu = false;
+      this.showHighScores = false;
       this.score.pauseTimer();
-    } else if (!document.hidden && document.hasFocus() && !this.isGameWon()) {
+    } else if (!document.hidden && document.hasFocus() && !this.isGameWon() && !this.showMobileMenu && !this.showHighScores) {
+      this.score.resumeTimer();
+    }
+  }
+
+  toggleMobileMenu(): void {
+    this.showMobileMenu = !this.showMobileMenu;
+    if (this.showMobileMenu) {
+      this.showSettings = false;
+      this.showHighScores = false;
+      this.score.pauseTimer();
+    } else if (!document.hidden && document.hasFocus() && !this.isGameWon() && !this.showSettings && !this.showHighScores) {
       this.score.resumeTimer();
     }
   }
@@ -556,6 +576,7 @@ export default class Board extends LitElement {
     ${this.isGameWon() ? this.renderWinModal() : ''}
     ${this.showSettings ? this.renderSettingsModal() : ''}
     ${this.showHighScores ? this.renderHighScoresModal() : ''}
+    ${this.showMobileMenu ? this.renderMobileMenuDrawer() : ''}
     ${this.hintToastMessage ? this.renderHintToast() : ''}
     `;
   }
@@ -1436,36 +1457,39 @@ export default class Board extends LitElement {
         <h1>Solitaire</h1>
       </div>
       <div class="actions">
-        <button class="btn" @click="${this.showHint}" title="Show Hint (H)">
-          ${lightbulb} Hint
-        </button>
-        <button class="btn" @click="${this.toggleSound}" title="${this.soundMuted ? 'Unmute sound (M)' : 'Mute sound (M)'}">
-          ${this.soundMuted ? volumeOff : volumeUp}
+        <button class="btn btn-hint" @click="${this.showHint}" title="Show Hint (H)">
+          ${lightbulb} <span class="btn-label">Hint</span>
         </button>
         <button 
-          class="btn" 
+          class="btn btn-undo" 
           @click="${this.handleUndo}" 
           title="Undo last move (U or Ctrl+Z)"
           ?disabled="${this.game.moves.length === 0}"
         >
-          ${undo} Undo
+          ${undo} <span class="btn-label">Undo</span>
         </button>
         <button 
-          class="btn" 
+          class="btn btn-redo" 
           @click="${this.handleRedo}" 
           title="Redo move (Ctrl+Y, Ctrl+Shift+Z, or Y)"
           ?disabled="${this.game.redoMoves.length === 0}"
         >
-          ${redo} Redo
+          ${redo} <span class="btn-label">Redo</span>
         </button>
-        <button class="btn" @click="${this.startGame}" title="Start a new game (N)">
-          ${refresh} New Game
+        <button class="btn desktop-only" @click="${this.toggleSound}" title="${this.soundMuted ? 'Unmute sound (M)' : 'Mute sound (M)'}">
+          ${this.soundMuted ? volumeOff : volumeUp}
         </button>
-        <button class="btn" @click="${this.toggleHighScores}" title="Top Scores (L)">
-          ${trophy} Scores
+        <button class="btn desktop-only" @click="${this.startGame}" title="Start a new game (N)">
+          ${refresh} <span class="btn-label">New Game</span>
         </button>
-        <button class="btn" @click="${this.toggleSettings}" title="Game Settings (S)">
-          ${settings} Settings
+        <button class="btn desktop-only" @click="${this.toggleHighScores}" title="Top Scores (L)">
+          ${trophy} <span class="btn-label">Scores</span>
+        </button>
+        <button class="btn desktop-only" @click="${this.toggleSettings}" title="Game Settings (S)">
+          ${settings} <span class="btn-label">Settings</span>
+        </button>
+        <button class="btn btn-menu mobile-only" @click="${this.toggleMobileMenu}" title="Game Menu">
+          ${menu} <span class="btn-label">Menu</span>
         </button>
       </div>
     </header>
@@ -1781,6 +1805,64 @@ export default class Board extends LitElement {
     `;
   }
 
+  renderMobileMenuDrawer(): TemplateResult {
+    return html`
+    <div class="mobile-drawer-backdrop" @click="${(e: MouseEvent) => { if (e.target === e.currentTarget) this.toggleMobileMenu(); }}">
+      <div class="mobile-drawer">
+        <div class="drawer-handle"></div>
+        <div class="drawer-header">
+          <h2 class="drawer-title">Game Menu</h2>
+          <button class="drawer-close-btn" @click="${this.toggleMobileMenu}" title="Close Menu">
+            ${close}
+          </button>
+        </div>
+        <div class="drawer-menu-list">
+          <button class="drawer-menu-item" @click="${() => { this.startGame(); this.toggleMobileMenu(); }}">
+            <span class="drawer-item-icon">${refresh}</span>
+            <div class="drawer-item-content">
+              <span class="drawer-item-title">New Game</span>
+              <span class="drawer-item-desc">Deal a fresh deck (${this.difficulty})</span>
+            </div>
+          </button>
+          <button class="drawer-menu-item" @click="${() => { this.toggleMobileMenu(); this.toggleSettings(); }}">
+            <span class="drawer-item-icon">${settings}</span>
+            <div class="drawer-item-content">
+              <span class="drawer-item-title">Settings & Modes</span>
+              <span class="drawer-item-desc">Difficulty, Vegas rules, bankroll</span>
+            </div>
+          </button>
+          <button class="drawer-menu-item" @click="${() => { this.toggleMobileMenu(); this.toggleHighScores(); }}">
+            <span class="drawer-item-icon">${trophy}</span>
+            <div class="drawer-item-content">
+              <span class="drawer-item-title">Leaderboard & Stats</span>
+              <span class="drawer-item-desc">View high scores and win history</span>
+            </div>
+          </button>
+          <button class="drawer-menu-item" @click="${() => this.toggleSound()}">
+            <span class="drawer-item-icon">${this.soundMuted ? volumeOff : volumeUp}</span>
+            <div class="drawer-item-content">
+              <span class="drawer-item-title">Sound Effects</span>
+              <span class="drawer-item-desc">${this.soundMuted ? 'Muted — Tap to enable sound' : 'Active — Tap to mute'}</span>
+            </div>
+            <span class="drawer-status-pill ${this.soundMuted ? 'muted' : 'active'}">
+              ${this.soundMuted ? 'OFF' : 'ON'}
+            </span>
+          </button>
+          ${this.canAutoComplete() ? html`
+          <button class="drawer-menu-item auto-complete" @click="${() => { this.toggleMobileMenu(); this.startAutoComplete(); }}">
+            <span class="drawer-item-icon">${bolt}</span>
+            <div class="drawer-item-content">
+              <span class="drawer-item-title">Auto-Complete</span>
+              <span class="drawer-item-desc">Cascade all cards to foundations</span>
+            </div>
+          </button>
+          ` : ''}
+        </div>
+      </div>
+    </div>
+    `;
+  }
+
   renderSettingsModal(): TemplateResult {
     return html`
     <div class="settings-modal" @click="${(e: MouseEvent) => { if (e.target === e.currentTarget) this.toggleSettings(); }}">
@@ -1948,10 +2030,12 @@ export default class Board extends LitElement {
   toggleHighScores(): void {
     this.showHighScores = !this.showHighScores;
     if (this.showHighScores) {
+      this.showMobileMenu = false;
+      this.showSettings = false;
       this.highScoresTab = this.scoringMode;
       this.score.pauseTimer();
       this.loadHighScoresData();
-    } else if (!document.hidden && document.hasFocus() && !this.isGameWon() && !this.showSettings) {
+    } else if (!document.hidden && document.hasFocus() && !this.isGameWon() && !this.showSettings && !this.showMobileMenu) {
       this.score.resumeTimer();
     }
   }
