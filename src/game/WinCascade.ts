@@ -228,7 +228,15 @@ export class WinCascade {
 
     // 2. Draw Center Artwork
     if (img && img.complete && img.naturalWidth > 0) {
-      this.ctx.drawImage(img, x, y, width, height);
+      if (isCourtCard(rank)) {
+        const frameW = width * 0.68;
+        const frameH = height * 0.88;
+        const frameX = x + (width - frameW) / 2;
+        const frameY = y + (height - frameH) / 2;
+        this.ctx.drawImage(img, frameX, frameY, frameW, frameH);
+      } else {
+        this.ctx.drawImage(img, x, y, width, height);
+      }
     } else {
       // Vector center fallback
       const isRedSuit = suit === Suit.Hearts || suit === Suit.Diamonds;
@@ -241,8 +249,7 @@ export class WinCascade {
       this.ctx.fillText(suitGlyph, x + width * 0.5, y + height * 0.52);
     }
 
-    // 3. Render Corner Rank for Court Cards (since court SVGs only contain portrait + suit pips)
-    // or when fallback is active (when img is missing)
+    // 3. Render Corner Rank and Suit for Court Cards and Fallbacks
     const hasImg = img && img.complete && img.naturalWidth > 0;
     if (isCourtCard(rank) || !hasImg) {
       const isRed = suit === Suit.Hearts || suit === Suit.Diamonds;
@@ -254,17 +261,14 @@ export class WinCascade {
       this.ctx.textBaseline = 'alphabetic';
 
       const rankFontSize = Math.max(12, Math.round(height * 0.15));
-
       const suitFontSize = Math.max(11, Math.round(height * 0.13));
       const suitChar = suit === Suit.Hearts ? '♥' : suit === Suit.Diamonds ? '♦' : suit === Suit.Clubs ? '♣' : '♠';
 
       // Top-left Corner
       this.ctx.font = `800 ${rankFontSize}px Roboto, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif`;
       this.ctx.fillText(rankLabel, x + Math.max(6, width * 0.1), y + rankFontSize * 1.05 + 2);
-      if (!hasImg) {
-        this.ctx.font = `bold ${suitFontSize}px sans-serif`;
-        this.ctx.fillText(suitChar, x + Math.max(6, width * 0.1), y + rankFontSize * 1.05 + suitFontSize * 1.05 + 1);
-      }
+      this.ctx.font = `bold ${suitFontSize}px sans-serif`;
+      this.ctx.fillText(suitChar, x + Math.max(6, width * 0.1), y + rankFontSize * 1.05 + suitFontSize * 1.05 + 1);
 
       // Bottom-right Corner (rotated 180°)
       this.ctx.save();
@@ -272,10 +276,8 @@ export class WinCascade {
       this.ctx.rotate(Math.PI);
       this.ctx.font = `800 ${rankFontSize}px Roboto, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif`;
       this.ctx.fillText(rankLabel, Math.max(6, width * 0.1), rankFontSize * 1.05 + 2);
-      if (!hasImg) {
-        this.ctx.font = `bold ${suitFontSize}px sans-serif`;
-        this.ctx.fillText(suitChar, Math.max(6, width * 0.1), rankFontSize * 1.05 + suitFontSize * 1.05 + 1);
-      }
+      this.ctx.font = `bold ${suitFontSize}px sans-serif`;
+      this.ctx.fillText(suitChar, Math.max(6, width * 0.1), rankFontSize * 1.05 + suitFontSize * 1.05 + 1);
       this.ctx.restore();
     }
 

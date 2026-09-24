@@ -1680,13 +1680,8 @@ export default class Board extends LitElement {
       data-is-top="${isTop !== undefined ? String(isTop) : ''}"
       @pointerdown="${this.handleCardPointerDown}"
     >
-      ${isCourt 
-        ? html`<div class="graphic"></div>` 
-        : html`
-            ${this.renderCardPips(suit, rank)}
-            ${this.renderCorners(suit, label)}
-          `
-      }
+      ${isCourt ? html`<div class="graphic"></div>` : this.renderCardPips(suit, rank)}
+      ${this.renderCorners(suit, label)}
     </div>
     `;
   }
