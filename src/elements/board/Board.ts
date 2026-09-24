@@ -1,17 +1,18 @@
 import { html, LitElement, TemplateResult } from 'lit';
 import { state } from 'lit/decorators.js';
 import { classMap } from 'lit/directives/class-map.js';
-import { CardSources, ICardLocation, Solitaire } from '../../game/Solitaire.js';
+import { CardSources, Solitaire } from '../../game/Solitaire.js';
 import { Card, Rank, Suit } from '../../cards/Card.js';
 import { CardStack } from '../../game/Ranking.js';
 import { rankToLabel } from '../../game/Labels.js';
 import { MoveSuggestion, suggestMoves, IHint, findBestHint } from '../../game/Suggestions.js';
 import { Score, ScoringMode } from '../../game/Score.js';
 import { GameDifficulty } from '../../game/Difficulty.js';
-import { bolt, close, lightbulb, redo, refresh, settings, trophy, undo, volumeOff, volumeUp } from '../Icons.js';
+import { close, lightbulb, redo, refresh, settings, trophy, undo, volumeOff, volumeUp } from '../Icons.js';
 import { soundFX } from '../../audio/SoundFX.js';
 import { CardCascadeDef, winCascade } from '../../game/WinCascade.js';
 import { scoreHistory, ILeaderboardData, IRankedScoreRecord, IScoreRecord } from '../../game/ScoreHistory.js';
+import { isCourtCard, getPipPositions, renderSuitSvg } from '../../cards/CardPips.js';
 
 interface IDraggedCard {
   /**
@@ -1169,13 +1170,14 @@ export default class Board extends LitElement {
   checkGameStatus(): void {
     if (this.isGameWon()) {
       this.score.stopTimer();
+      const bonus = this.score.applyWinBonus();
       soundFX.win();
       this.triggerWinCascade();
-      this.recordWin();
+      this.recordWin(bonus);
     }
   }
 
-  async recordWin(): Promise<void> {
+  async recordWin(bonus: number = 0): Promise<void> {
     if (this.hasRecordedCurrentWin) return;
     this.hasRecordedCurrentWin = true;
 
@@ -1189,6 +1191,7 @@ export default class Board extends LitElement {
       difficulty: this.difficulty,
       drawCount: this.drawCount,
       date: Date.now(),
+      timeBonus: bonus > 0 ? bonus : undefined,
     };
 
     try {
@@ -1658,8 +1661,10 @@ export default class Board extends LitElement {
     const label = rankToLabel(rank);
     const isHintSource = this.activeHint?.cardId === id;
     const isHintTarget = this.activeHint?.targetCardId === id;
+    const isCourt = isCourtCard(rank);
     const classes = {
       'card-front': true,
+      'is-court': isCourt,
       'hint-source': isHintSource,
       'hint-target': isHintTarget,
     };
@@ -1677,8 +1682,39 @@ export default class Board extends LitElement {
       data-is-top="${isTop !== undefined ? String(isTop) : ''}"
       @pointerdown="${this.handleCardPointerDown}"
     >
-      <div class="graphic"></div>
+      ${isCourt ? html`<div class="graphic"></div>` : this.renderCardPips(suit, rank)}
+      ${this.renderCorners(suit, label)}
     </div>
+    `;
+  }
+
+  renderCorners(suit: Suit, label: string): TemplateResult {
+    const suitIcon = renderSuitSvg(suit, 'corner-suit');
+    return html`
+      <div class="corner top-left">
+        <span class="corner-rank">${label}</span>
+        ${suitIcon}
+      </div>
+      <div class="corner bottom-right">
+        <span class="corner-rank">${label}</span>
+        ${suitIcon}
+      </div>
+    `;
+  }
+
+  renderCardPips(suit: Suit, rank: Rank): TemplateResult {
+    const pips = getPipPositions(rank);
+    return html`
+      <div class="card-pips">
+        ${pips.map(p => html`
+          <div 
+            class="pip ${p.large ? 'large' : ''} ${p.flip ? 'flipped' : ''}" 
+            style="left: ${p.x}%; top: ${p.y}%;"
+          >
+            ${renderSuitSvg(suit, 'pip-svg')}
+          </div>
+        `)}
+      </div>
     `;
   }
 
@@ -1711,6 +1747,7 @@ export default class Board extends LitElement {
     const elapsedTime = this.score.getElapsedTime();
     const { length } = this.game.moves;
     const isVegas = this.scoringMode === 'vegas';
+    const bonus = this.score.lastAwardedBonus;
 
     return html`
     <div class="win-modal">
@@ -1720,7 +1757,10 @@ export default class Board extends LitElement {
         <div class="win-stats">
           <div>
             <div class="win-stat-val ${scoreClass}">${formattedScore}</div>
-            <div class="win-stat-lbl">${isVegas ? (this.vegasCumulative ? 'Bankroll' : 'Winnings') : 'Score'}</div>
+            <div class="win-stat-lbl">
+              ${isVegas ? (this.vegasCumulative ? 'Bankroll' : 'Winnings') : 'Score'}
+              ${!isVegas && bonus > 0 ? html`<div class="win-bonus-tag" style="font-size: 0.72rem; color: #34d399; font-weight: 600; margin-top: 3px;">+${bonus.toLocaleString()} time bonus</div>` : ''}
+            </div>
           </div>
           <div>
             <div class="win-stat-val">${length}</div>

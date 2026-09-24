@@ -1,6 +1,7 @@
 import { Rank, Suit } from '../cards/Card.js';
 import { soundFX } from '../audio/SoundFX.js';
 import { rankToLabel } from './Labels.js';
+import { generateCardSvgDataUrl, isCourtCard } from '../cards/CardPips.js';
 
 export interface CardCascadeDef {
   suit: Suit;
@@ -76,6 +77,23 @@ export class WinCascade {
       }
       for (let i = 0; i < shadowRoot.styleSheets.length; i++) {
         scanSheet(shadowRoot.styleSheets[i]);
+      }
+    }
+
+    // Pre-populate procedural pip cards (Ace, 2-10) for all 4 suits
+    const suits = [Suit.Spades, Suit.Hearts, Suit.Diamonds, Suit.Clubs];
+    const pipRanks = [
+      Rank.Ace, Rank.Two, Rank.Three, Rank.Four, Rank.Five,
+      Rank.Six, Rank.Seven, Rank.Eight, Rank.Nine, Rank.Ten
+    ];
+    for (const suit of suits) {
+      for (const rank of pipRanks) {
+        const key = `${suit}_${rank}`;
+        if (!this.svgUrlCache.has(key)) {
+          const dataUrl = generateCardSvgDataUrl(suit, rank);
+          this.svgUrlCache.set(key, dataUrl);
+          this.getImage(dataUrl);
+        }
       }
     }
   }
@@ -210,7 +228,15 @@ export class WinCascade {
 
     // 2. Draw Center Artwork
     if (img && img.complete && img.naturalWidth > 0) {
-      this.ctx.drawImage(img, x, y, width, height);
+      if (isCourtCard(rank)) {
+        const frameW = width * 0.68;
+        const frameH = height * 0.88;
+        const frameX = x + (width - frameW) / 2;
+        const frameY = y + (height - frameH) / 2;
+        this.ctx.drawImage(img, frameX, frameY, frameW, frameH);
+      } else {
+        this.ctx.drawImage(img, x, y, width, height);
+      }
     } else {
       // Vector center fallback
       const isRedSuit = suit === Suit.Hearts || suit === Suit.Diamonds;
@@ -223,34 +249,37 @@ export class WinCascade {
       this.ctx.fillText(suitGlyph, x + width * 0.5, y + height * 0.52);
     }
 
-    // 3. ALWAYS Render Corner Rank & Suit Indicator (Matching CSS ::before & ::after)
-    const isRed = suit === Suit.Hearts || suit === Suit.Diamonds;
-    const suitColor = isRed ? '#e52525' : '#18181b';
-    const suitChar = suit === Suit.Hearts ? '♥' : suit === Suit.Diamonds ? '♦' : suit === Suit.Clubs ? '♣' : '♠';
-    const rankLabel = rankToLabel(rank);
+    // 3. Render Corner Rank and Suit for Court Cards and Fallbacks
+    const hasImg = img && img.complete && img.naturalWidth > 0;
+    if (isCourtCard(rank) || !hasImg) {
+      const isRed = suit === Suit.Hearts || suit === Suit.Diamonds;
+      const suitColor = isRed ? '#e52525' : '#18181b';
+      const rankLabel = rankToLabel(rank);
 
-    this.ctx.fillStyle = suitColor;
-    this.ctx.textAlign = 'center';
-    this.ctx.textBaseline = 'alphabetic';
+      this.ctx.fillStyle = suitColor;
+      this.ctx.textAlign = 'center';
+      this.ctx.textBaseline = 'alphabetic';
 
-    const rankFontSize = Math.max(12, Math.round(height * 0.15));
-    const suitFontSize = Math.max(11, Math.round(height * 0.13));
+      const rankFontSize = Math.max(12, Math.round(height * 0.15));
+      const suitFontSize = Math.max(11, Math.round(height * 0.13));
+      const suitChar = suit === Suit.Hearts ? '♥' : suit === Suit.Diamonds ? '♦' : suit === Suit.Clubs ? '♣' : '♠';
 
-    // Top-left Corner
-    this.ctx.font = `800 ${rankFontSize}px Roboto, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif`;
-    this.ctx.fillText(rankLabel, x + Math.max(6, width * 0.1), y + rankFontSize * 1.05 + 2);
-    this.ctx.font = `bold ${suitFontSize}px sans-serif`;
-    this.ctx.fillText(suitChar, x + Math.max(6, width * 0.1), y + rankFontSize * 1.05 + suitFontSize * 1.05 + 1);
+      // Top-left Corner
+      this.ctx.font = `800 ${rankFontSize}px Roboto, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif`;
+      this.ctx.fillText(rankLabel, x + Math.max(6, width * 0.1), y + rankFontSize * 1.05 + 2);
+      this.ctx.font = `bold ${suitFontSize}px sans-serif`;
+      this.ctx.fillText(suitChar, x + Math.max(6, width * 0.1), y + rankFontSize * 1.05 + suitFontSize * 1.05 + 1);
 
-    // Bottom-right Corner (rotated 180°)
-    this.ctx.save();
-    this.ctx.translate(x + width, y + height);
-    this.ctx.rotate(Math.PI);
-    this.ctx.font = `800 ${rankFontSize}px Roboto, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif`;
-    this.ctx.fillText(rankLabel, Math.max(6, width * 0.1), rankFontSize * 1.05 + 2);
-    this.ctx.font = `bold ${suitFontSize}px sans-serif`;
-    this.ctx.fillText(suitChar, Math.max(6, width * 0.1), rankFontSize * 1.05 + suitFontSize * 1.05 + 1);
-    this.ctx.restore();
+      // Bottom-right Corner (rotated 180°)
+      this.ctx.save();
+      this.ctx.translate(x + width, y + height);
+      this.ctx.rotate(Math.PI);
+      this.ctx.font = `800 ${rankFontSize}px Roboto, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif`;
+      this.ctx.fillText(rankLabel, Math.max(6, width * 0.1), rankFontSize * 1.05 + 2);
+      this.ctx.font = `bold ${suitFontSize}px sans-serif`;
+      this.ctx.fillText(suitChar, Math.max(6, width * 0.1), rankFontSize * 1.05 + suitFontSize * 1.05 + 1);
+      this.ctx.restore();
+    }
 
     this.ctx.restore();
   }
